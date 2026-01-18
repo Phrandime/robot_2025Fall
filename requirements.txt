@@ -6,3 +6,4 @@ scikit-image
 scipy
 torchmetrics
 transformers
+accelerate

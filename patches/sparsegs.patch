@@ -1,0 +1,211 @@
+diff --git a/arguments/__init__.py b/arguments/__init__.py
+index 072aeaf..e00636c 100644
+--- a/arguments/__init__.py
++++ b/arguments/__init__.py
+@@ -59,6 +59,7 @@ class ModelParams(ParamGroup):
+         self.data_device = "cuda"
+         self.no_load_depth = False
+         self.eval = False
++        self.init_ply_path = ""
+ 
+         # Pearson Depth Loss
+         self.lambda_local_pearson = 0.0
+diff --git a/guidance/sd_utils.py b/guidance/sd_utils.py
+index 5013993..e7c19cd 100644
+--- a/guidance/sd_utils.py
++++ b/guidance/sd_utils.py
+@@ -7,6 +7,7 @@ from diffusers import (
+     StableDiffusionPipeline,
+ )
+ from diffusers.utils.import_utils import is_xformers_available
++import os
+ 
+ # suppress partial model loading warning
+ logging.set_verbosity_error()
+@@ -32,6 +33,7 @@ class StableDiffusion(nn.Module):
+         vram_O=False,
+         sd_version="2.1",
+         hf_key=None,
++        hf_token=None,
+         t_range=[0.02, 0.98],
+     ):
+         super().__init__()
+@@ -55,10 +57,16 @@ class StableDiffusion(nn.Module):
+ 
+         self.dtype = torch.float16 if fp16 else torch.float32
+ 
+-        # Create model
+-        pipe = StableDiffusionPipeline.from_pretrained(
+-            model_key, torch_dtype=self.dtype
+-        )
++        # Create model (allow passing an auth token or a local/path model key)
++        # If model_key is a local directory, load from local files only to avoid Hub requests
++        if os.path.isdir(model_key):
++            pipe = StableDiffusionPipeline.from_pretrained(
++                model_key, torch_dtype=self.dtype, local_files_only=True
++            )
++        else:
++            pipe = StableDiffusionPipeline.from_pretrained(
++                model_key, torch_dtype=self.dtype, use_auth_token=hf_token
++            )
+ 
+         if vram_O:
+             pipe.enable_sequential_cpu_offload()
+@@ -74,9 +82,14 @@ class StableDiffusion(nn.Module):
+         self.text_encoder = pipe.text_encoder
+         self.unet = pipe.unet
+ 
+-        self.scheduler = DDIMScheduler.from_pretrained(
+-            model_key, subfolder="scheduler", torch_dtype=self.dtype
+-        )
++        if os.path.isdir(model_key):
++            self.scheduler = DDIMScheduler.from_pretrained(
++                model_key, subfolder="scheduler", torch_dtype=self.dtype, local_files_only=True
++            )
++        else:
++            self.scheduler = DDIMScheduler.from_pretrained(
++                model_key, subfolder="scheduler", torch_dtype=self.dtype, use_auth_token=hf_token
++            )
+ 
+         del pipe
+ 
+@@ -310,6 +323,7 @@ if __name__ == "__main__":
+         default=None,
+         help="hugging face Stable diffusion model key",
+     )
++    parser.add_argument("--hf_token", type=str, default=None, help="Hugging Face token to access gated models (or set HUGGINGFACE_HUB_TOKEN env var)")
+     parser.add_argument("--fp16", action="store_true", help="use float16 for training")
+     parser.add_argument(
+         "--vram_O", action="store_true", help="optimization for low VRAM usage"
+@@ -324,7 +338,7 @@ if __name__ == "__main__":
+ 
+     device = torch.device("cuda")
+ 
+-    sd = StableDiffusion(device, opt.fp16, opt.vram_O, opt.sd_version, opt.hf_key)
++    sd = StableDiffusion(device, opt.fp16, opt.vram_O, opt.sd_version, opt.hf_key, opt.hf_token)
+ 
+     imgs = sd.prompt_to_img(opt.prompt, opt.negative, opt.H, opt.W, opt.steps)
+ 
+diff --git a/scene/__init__.py b/scene/__init__.py
+index d95a79e..fef1898 100755
+--- a/scene/__init__.py
++++ b/scene/__init__.py
+@@ -126,7 +126,20 @@ class Scene:
+                                                            "iteration_" + str(self.loaded_iter),
+                                                            "point_cloud.ply"))
+         else:
+-            self.gaussians.create_from_pcd(scene_info.point_cloud, self.cameras_extent)
++            # Use custom init ply if provided (full Gaussian attributes)
++            if args.init_ply_path and os.path.exists(args.init_ply_path):
++                print(f"[INFO] Loading initial point cloud from: {args.init_ply_path}")
++                # Check if it's a full Gaussian ply (with opacity, scales, rotations)
++                try:
++                    self.gaussians.load_ply(args.init_ply_path)
++                    print(f"[INFO] Loaded {self.gaussians.get_xyz.shape[0]} points as full Gaussians")
++                except:
++                    print(f"[INFO] Failed to load as full Gaussians, loading as basic point cloud")
++                    from scene.dataset_readers import fetchPly
++                    custom_pcd = fetchPly(args.init_ply_path)
++                    self.gaussians.create_from_pcd(custom_pcd, self.cameras_extent)
++            else:
++                self.gaussians.create_from_pcd(scene_info.point_cloud, self.cameras_extent)
+ 
+     def save(self, iteration):
+         point_cloud_path = os.path.join(self.model_path, f"point_cloud/iteration_{iteration}")
+diff --git a/scene/gaussian_model.py b/scene/gaussian_model.py
+index 40d8bf5..d76e6f5 100755
+--- a/scene/gaussian_model.py
++++ b/scene/gaussian_model.py
+@@ -234,12 +234,18 @@ class GaussianModel:
+ 
+         extra_f_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("f_rest_")]
+         extra_f_names = sorted(extra_f_names, key = lambda x: int(x.split('_')[-1]))
+-        assert len(extra_f_names)==3*(self.max_sh_degree + 1) ** 2 - 3
+-        features_extra = np.zeros((xyz.shape[0], len(extra_f_names)))
+-        for idx, attr_name in enumerate(extra_f_names):
+-            features_extra[:, idx] = np.asarray(plydata.elements[0][attr_name])
+-        # Reshape (P,F*SH_coeffs) to (P, F, SH_coeffs except DC)
+-        features_extra = features_extra.reshape((features_extra.shape[0], 3, (self.max_sh_degree + 1) ** 2 - 1))
++        
++        # Handle case where f_rest properties don't exist (e.g., from feedforward models)
++        if len(extra_f_names) == 0:
++            print(f"[INFO] No f_rest properties found, initializing with zeros (SH degree 0 only)")
++            features_extra = np.zeros((xyz.shape[0], 3, (self.max_sh_degree + 1) ** 2 - 1))
++        else:
++            assert len(extra_f_names)==3*(self.max_sh_degree + 1) ** 2 - 3
++            features_extra = np.zeros((xyz.shape[0], len(extra_f_names)))
++            for idx, attr_name in enumerate(extra_f_names):
++                features_extra[:, idx] = np.asarray(plydata.elements[0][attr_name])
++            # Reshape (P,F*SH_coeffs) to (P, F, SH_coeffs except DC)
++            features_extra = features_extra.reshape((features_extra.shape[0], 3, (self.max_sh_degree + 1) ** 2 - 1))
+ 
+         scale_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("scale_")]
+         scale_names = sorted(scale_names, key = lambda x: int(x.split('_')[-1]))
+@@ -259,6 +265,7 @@ class GaussianModel:
+         self._opacity = nn.Parameter(torch.tensor(opacities, dtype=torch.float, device="cuda").requires_grad_(True))
+         self._scaling = nn.Parameter(torch.tensor(scales, dtype=torch.float, device="cuda").requires_grad_(True))
+         self._rotation = nn.Parameter(torch.tensor(rots, dtype=torch.float, device="cuda").requires_grad_(True))
++        self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
+ 
+         self.active_sh_degree = self.max_sh_degree
+ 
+diff --git a/submodules/simple-knn/simple_knn.cu b/submodules/simple-knn/simple_knn.cu
+index 661d488..c88694f 100755
+--- a/submodules/simple-knn/simple_knn.cu
++++ b/submodules/simple-knn/simple_knn.cu
+@@ -20,6 +20,7 @@
+ #include <cuda_runtime_api.h>
+ #include <thrust/device_vector.h>
+ #include <thrust/sequence.h>
++#include <cfloat>
+ #define __CUDACC__
+ #include <cooperative_groups.h>
+ #include <cooperative_groups/reduce.h>
+diff --git a/train.py b/train.py
+index 3540b1d..242ae0b 100644
+--- a/train.py
++++ b/train.py
+@@ -5,7 +5,6 @@ import torch.nn.functional as F
+ import math
+ import cv2
+ import diptest
+-from icecream import ic
+ from guidance.sd_utils import StableDiffusion
+ from random import randint
+ from utils.loss_utils import l1_loss, ssim, local_pearson_loss, pearson_depth_loss, mask_l1_loss
+@@ -35,7 +34,7 @@ except ImportError:
+ 
+     
+ 
+-def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from, step, max_cameras, prune_sched):
++def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from, step, max_cameras, prune_sched, hf_key=None, hf_token=None):
+     first_iter = 0
+     tb_writer = prepare_output_and_logger(dataset)
+     gaussians = GaussianModel(dataset.sh_degree)
+@@ -61,7 +60,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
+     print(prune_sched)
+ 
+     if dataset.lambda_diffusion:
+-        guidance_sd = StableDiffusion(device="cuda")
++        guidance_sd = StableDiffusion(device="cuda", hf_key=hf_key, hf_token=hf_token)
+         guidance_sd.get_text_embeds([""], [""])
+         print(f"[INFO] loaded SD!")
+ 
+@@ -444,6 +443,8 @@ if __name__ == "__main__":
+     parser.add_argument("--step", type=int, default=1)
+     parser.add_argument("--max_cameras", type=int, default=None)
+     parser.add_argument("--prune_sched", nargs="+", type=int, default=[])
++    parser.add_argument("--hf_key", type=str, default=None, help="Hugging Face model id or local path for Stable Diffusion (e.g. stabilityai/stable-diffusion-2-1-base or /path/to/model)")
++    parser.add_argument("--hf_token", type=str, default=None, help="Hugging Face token to access gated models (can also be provided via environment variable HUGGINGFACE_HUB_TOKEN)")
+     args = parser.parse_args(sys.argv[1:])
+     args.save_iterations.append(args.iterations)
+ 
+@@ -456,7 +457,7 @@ if __name__ == "__main__":
+     # Start GUI server, configure and run training
+     # network_gui.init(args.ip, args.port)
+     torch.autograd.set_detect_anomaly(args.detect_anomaly)
+-    training(dataset, op.extract(args), pp.extract(args), args.test_iterations, args.save_iterations, args.checkpoint_iterations, args.start_checkpoint, args.debug_from, args.step, args.max_cameras, args.prune_sched)
++    training(dataset, op.extract(args), pp.extract(args), args.test_iterations, args.save_iterations, args.checkpoint_iterations, args.start_checkpoint, args.debug_from, args.step, args.max_cameras, args.prune_sched, args.hf_key, args.hf_token)
+ 
+     # All done
+     print("\nTraining complete.")

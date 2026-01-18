@@ -41,6 +41,7 @@ cd robot_2025Fall
 #### 2.2 应用代码补丁
 ```bash
 git apply ./patches/depth_anything_3.patch
+git apply ./patches/sparsegs.patch
 ```
 
 #### 2.3 按照 depth-anything-3 要求安装依赖
@@ -53,10 +54,12 @@ pip install -e ".[app]" # Gradio, python>=3.10
 # pip install -e ".[all]" # ALL  # 不执行这一行
 ```
 
-#### 2.4 安装剩余依赖
+#### 2.4 安装 SparseGS 剩余依赖
 ```bash
-cd ..
+cd ../SparseGS
+git clone https://github.com/g-truc/glm.git submodules/diff-gaussian-rasterization-softmax/third_party/glm
 pip install -r requirements.txt
+pip install submodules/diff-gaussian-rasterization-softmax submodules/simple-knn --no-build-isolation
 ```
 
 ### 3. 模型下载

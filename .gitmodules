@@ -1,3 +1,6 @@
 [submodule "depth-anything-3"]
 	path = depth-anything-3
 	url = https://github.com/ByteDance-Seed/depth-anything-3
+[submodule "SparseGS"]
+	path = SparseGS
+	url = https://github.com/ForMyCat/SparseGS

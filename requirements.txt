@@ -1,0 +1,8 @@
+diptest==0.6.1
+diffusers
+matplotlib
+recordclass
+scikit-image
+scipy
+torchmetrics
+transformers

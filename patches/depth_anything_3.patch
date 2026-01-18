@@ -1,0 +1,116 @@
+diff --git a/src/depth_anything_3/cli.py b/src/depth_anything_3/cli.py
+index c946302..3296542 100644
+--- a/src/depth_anything_3/cli.py
++++ b/src/depth_anything_3/cli.py
+@@ -380,7 +380,7 @@ def image(
+         process_res_method=process_res_method,
+         export_feat_layers=export_feat_layers,
+         use_ray_pose=use_ray_pose,
+-        reference_view_strategy=reference_view_strategy,
++        ref_view_strategy=ref_view_strategy,
+         conf_thresh_percentile=conf_thresh_percentile,
+         num_max_points=num_max_points,
+         show_cameras=show_cameras,
+@@ -459,7 +459,7 @@ def images(
+         process_res_method=process_res_method,
+         export_feat_layers=export_feat_layers,
+         use_ray_pose=use_ray_pose,
+-        reference_view_strategy=reference_view_strategy,
++        ref_view_strategy=ref_view_strategy,
+         conf_thresh_percentile=conf_thresh_percentile,
+         num_max_points=num_max_points,
+         show_cameras=show_cameras,
+@@ -546,7 +546,7 @@ def colmap(
+         intrinsics=intrinsics,
+         align_to_input_ext_scale=align_to_input_ext_scale,
+         use_ray_pose=use_ray_pose,
+-        reference_view_strategy=reference_view_strategy,
++        ref_view_strategy=ref_view_strategy,
+         conf_thresh_percentile=conf_thresh_percentile,
+         num_max_points=num_max_points,
+         show_cameras=show_cameras,
+@@ -623,7 +623,7 @@ def video(
+         process_res_method=process_res_method,
+         export_feat_layers=export_feat_layers,
+         use_ray_pose=use_ray_pose,
+-        reference_view_strategy=reference_view_strategy,
++        ref_view_strategy=ref_view_strategy,
+         conf_thresh_percentile=conf_thresh_percentile,
+         num_max_points=num_max_points,
+         show_cameras=show_cameras,
+diff --git a/src/depth_anything_3/services/inference_service.py b/src/depth_anything_3/services/inference_service.py
+index 2ec8dbc..7729d73 100644
+--- a/src/depth_anything_3/services/inference_service.py
++++ b/src/depth_anything_3/services/inference_service.py
+@@ -57,11 +57,16 @@ class InferenceService:
+         num_max_points: int = 1_000_000,
+         show_cameras: bool = True,
+         feat_vis_fps: int = 15,
++        infer_gs: Optional[bool] = None,
+     ) -> Any:
+         """Run local inference"""
+         if export_feat_layers is None:
+             export_feat_layers = []
+ 
++        # Auto-detect infer_gs if not explicitly set
++        if infer_gs is None:
++            infer_gs = "gs" in export_format
++
+         model = self.load_model()
+ 
+         # Prepare inference parameters
+@@ -79,6 +84,7 @@ class InferenceService:
+             "num_max_points": num_max_points,
+             "show_cameras": show_cameras,
+             "feat_vis_fps": feat_vis_fps,
++            "infer_gs": infer_gs,
+         }
+ 
+         # Add pose data (if exists)
+@@ -114,11 +120,16 @@ class InferenceService:
+         num_max_points: int = 1_000_000,
+         show_cameras: bool = True,
+         feat_vis_fps: int = 15,
++        infer_gs: Optional[bool] = None,
+     ) -> Dict[str, Any]:
+         """Run backend inference"""
+         if export_feat_layers is None:
+             export_feat_layers = []
+ 
++        # Auto-detect infer_gs if not explicitly set
++        if infer_gs is None:
++            infer_gs = "gs" in export_format
++
+         # Check backend status
+         if not self._check_backend_status(backend_url):
+             raise typer.BadParameter(f"Backend service is not running at {backend_url}")
+@@ -138,6 +149,7 @@ class InferenceService:
+             "num_max_points": num_max_points,
+             "show_cameras": show_cameras,
+             "feat_vis_fps": feat_vis_fps,
++            "infer_gs": infer_gs,
+         }
+ 
+         # Add pose data (if exists)
+@@ -195,6 +207,7 @@ def run_inference(
+     num_max_points: int = 1_000_000,
+     show_cameras: bool = True,
+     feat_vis_fps: int = 15,
++    infer_gs: Optional[bool] = None,
+ ) -> Union[Any, Dict[str, Any]]:
+     """Unified inference interface"""
+ 
+@@ -218,6 +231,7 @@ def run_inference(
+             num_max_points=num_max_points,
+             show_cameras=show_cameras,
+             feat_vis_fps=feat_vis_fps,
++            infer_gs=infer_gs,
+         )
+     else:
+         return service.run_local_inference(
+@@ -236,4 +250,5 @@ def run_inference(
+             num_max_points=num_max_points,
+             show_cameras=show_cameras,
+             feat_vis_fps=feat_vis_fps,
++            infer_gs=infer_gs,
+         )

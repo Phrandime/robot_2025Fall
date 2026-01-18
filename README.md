@@ -81,7 +81,10 @@ SparseGS 需要用到 Stable Diffusion 模型，可以下载 [stable-diffusion-2
 
 执行指令
 ```bash
-python3 scripts/run_da3_and_organize.py --dataset-root /path/to/scene --model-dir /path/to/DA3-model --process-res 1024
+python3 scripts/run_da3_and_organize.py \
+    --dataset-root /path/to/scene \
+    --model-dir /path/to/DA3-model \
+    --process-res 1024
 ```
 
 生成 DA3 预测得到的 COLMAP 数据集、高斯点云等文件

@@ -6,20 +6,20 @@
 
 ```
 robot_2025Fall/
-├── README.md                              # project description
-├── depth-anything-3/                      # submodule
+├── README.md                             # project description
+├── depth-anything-3/                     # submodule
 |   └── ...
-├── SparseGS/                              # submodule
+├── SparseGS/                             # submodule
 |   └── ...
-├── patches/                               # patches for submodules
-|   └── depth_anything_3.patch             # fix bugs in DA3
-├── scripts                                # scripts
-|   ├── convert_to_3dgs_format.py          # convert 3DGS output by DA3 for the Gaussian viewer
-|   ├── npz2npy.py                         # convert results.npz to per-image .npy depth files
-|   └── run_da3_and_organize.py            # rapper script to run `da3 images` and reorganize outputs
+├── patches/                              # patches for submodules
+|   └── depth_anything_3.patch            # fix bugs in DA3
+├── scripts                               # scripts
+|   ├── convert_to_3dgs_format.py         # convert 3DGS output by DA3 for the Gaussian viewer
+|   ├── npz2npy.py                        # convert results.npz to per-image .npy depth files
+|   └── run_da3_and_organize.py           # rapper script to run `da3 images` and reorganize outputs
 └── workspace
-    ├── checkpoints/                       # place model weights here
-    └── datasets/                          # place images here 
+    ├── checkpoints/                      # place model weights here
+    └── datasets/                         # place images here 
 ```
 
 ## 🛠️ 环境配置

@@ -41,7 +41,7 @@ cd robot_2025Fall
 #### 2.2 应用代码补丁
 ```bash
 git apply ./patches/depth_anything_3.patch
-git apply ./patches/sparsegs.patch
+git apply --whitespace=fix --reject ../patches/sparsegs.patch
 ```
 
 #### 2.3 按照 depth-anything-3 要求安装依赖
@@ -80,4 +80,25 @@ pip install submodules/diff-gaussian-rasterization-softmax submodules/simple-knn
 执行指令
 ```bash
 python3 scripts/run_da3_and_organize.py --dataset-root /path/to/scene --model-dir /path/to/DA3-model --process-res 1024
+```
+
+生成 DA3 预测得到的 COLMAP 数据集、高斯点云等文件
+
+然后使用 SparseGS 进行重建
+```
+cd SparseGS
+python train.py \
+    --source_path /path/to/colmap/dataset \
+    --model_path /output/path \
+    --init_ply_path /path/to/point_cloud.ply \
+    --iterations 3000 --resolution 4 \
+    --densify_from_iter 999999 \
+    --densify_until_iter 1 \
+    --opacity_reset_interval 999999 \
+    --lambda_pearson 0.01 --lambda_local_pearson 0.03 \
+    --enable_diffusion --lambda_diffusion 0.1 --SDS_freq 0.1 \
+    --hf_key /YueYangDi/models/stabilityai/stable-diffusion-2-1-base \
+    --checkpoint_iterations 1000 2000 3000 \
+    --test_iterations 1000 2000 3000 \
+    --save_iterations 1000 2000 3000
 ```

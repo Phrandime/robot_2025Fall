@@ -46,7 +46,7 @@ cd ../SparseGS && git apply --whitespace=fix --reject ../patches/sparsegs.patch
 
 #### 2.3 按照 depth-anything-3 要求安装依赖
 ```bash
-cd depth-anything-3
+cd ../depth-anything-3
 pip install xformers torch\>=2 torchvision
 pip install -e . # Basic
 pip install --no-build-isolation git+https://github.com/nerfstudio-project/gsplat.git@0b4dddf04cb687367602c01196913cde6a743d70 # for gaussian head
@@ -56,6 +56,7 @@ pip install -e ".[app]" # Gradio, python>=3.10
 
 #### 2.4 安装 SparseGS 剩余依赖
 ```bash
+cd ..
 pip install -r requirements.txt
 git clone https://github.com/g-truc/glm.git SparseGS/submodules/diff-gaussian-rasterization-softmax/third_party/glm
 pip install \

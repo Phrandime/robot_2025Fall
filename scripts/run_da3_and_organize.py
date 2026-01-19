@@ -36,7 +36,7 @@ def main():
     parser.add_argument('--dataset-root', required=True, help='Path to dataset root (contains images/ )')
     parser.add_argument('--model-dir', required=True, help='Path to model directory for --model-dir')
     parser.add_argument('--process-res', type=int, default=1024, help='process-res passed to da3')
-    parser.add_argument('--env', type=str, default='py311_da3', help='Conda env name to run da3 (uses `conda run -n ENV da3 ...`)')
+    parser.add_argument('--env', type=str, default='py310_robot', help='Conda env name to run da3 (uses `conda run -n ENV da3 ...`)')
     parser.add_argument('--skip-da3', action='store_true', help='Skip running da3 (useful for testing organization only)')
     args = parser.parse_args()
 

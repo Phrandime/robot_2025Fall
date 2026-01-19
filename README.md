@@ -40,8 +40,8 @@ cd robot_2025Fall
 
 #### 2.2 应用代码补丁
 ```bash
-git apply ./patches/depth_anything_3.patch
-git apply --whitespace=fix --reject ../patches/sparsegs.patch
+cd depth-anything-3 && git apply ./patches/depth_anything_3.patch
+cd ../SparseGS && git apply --whitespace=fix --reject ../patches/sparsegs.patch
 ```
 
 #### 2.3 按照 depth-anything-3 要求安装依赖
@@ -56,10 +56,12 @@ pip install -e ".[app]" # Gradio, python>=3.10
 
 #### 2.4 安装 SparseGS 剩余依赖
 ```bash
-cd ../SparseGS
-git clone https://github.com/g-truc/glm.git submodules/diff-gaussian-rasterization-softmax/third_party/glm
 pip install -r requirements.txt
-pip install submodules/diff-gaussian-rasterization-softmax submodules/simple-knn --no-build-isolation
+git clone https://github.com/g-truc/glm.git SparseGS/submodules/diff-gaussian-rasterization-softmax/third_party/glm
+pip install \
+    SparseGS/submodules/diff-gaussian-rasterization-softmax \
+    SparseGS/submodules/simple-knn \
+    --no-build-isolation
 ```
 
 ### 3. 模型下载
@@ -107,11 +109,11 @@ python train.py \
 
 ```bash
 python train.py \
-    --source_path ../workspace/datasets/bench \
-    --model_path ../workspace/output/bench \
+    --source_path /path/to/colmap/dataset \
+    --model_path /output/path \
     --init_ply_path /path/to/point_cloud.ply \
     --lambda_diffusion 0.001 --SDS_freq 0.1 --step_ratio 0.99 --lambda_reg 0.1 \
-    --iterations 10000 \
+    --iterations 3000 \
     -r 4 \
     --hf_key /path/to/stable-diffusion-model
 ```
